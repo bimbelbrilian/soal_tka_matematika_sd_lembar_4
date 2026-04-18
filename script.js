@@ -556,7 +556,7 @@ class KuisMatematika {
                 }
             ]
         };
-        
+
         this.jawabanUser = {};
         this.soalDijawab = 0;
         this.quizSubmitted = false;
@@ -565,11 +565,57 @@ class KuisMatematika {
         this.currentSoalIndex = 0;
         this.totalSoal = this.soalData.soal.length;
         this.timeLeft = 2 * 60 * this.totalSoal;
+        this.currentEscHandler = null;
         this.init();
     }
 
     init() {
         this.setupEventListeners();
+    }
+
+    // ===================================================================
+    // ✅ PERBAIKAN UTAMA: Method normalisasi jawaban
+    // ===================================================================
+    normalisasiJawaban(value) {
+        // Jika null atau undefined, kembalikan sebagai-nya
+        if (value === null || value === undefined) {
+            return value;
+        }
+
+        // Convert ke string untuk analisis
+        const strValue = String(value).trim();
+
+        // Jika string kosong, kembalikan null
+        if (strValue === '') {
+            return null;
+        }
+
+        // Coba convert ke number
+        const numValue = Number(strValue);
+
+        // Jika valid number, kembalikan sebagai number
+        if (!isNaN(numValue) && strValue !== '') {
+            return numValue;
+        }
+
+        // Jika bukan number valid, kembalikan string asli
+        return strValue;
+    }
+
+    // Method untuk membandingkan jawaban dengan aman
+    bandingkanJawaban(userAnswer, correctAnswer) {
+        // Jika user tidak menjawab
+        if (userAnswer === null || userAnswer === undefined) {
+            return false;
+        }
+
+        // Normalisasi kedua nilai
+        const normalizedUser = this.normalisasiJawaban(userAnswer);
+        const normalizedCorrect = this.normalisasiJawaban(correctAnswer);
+
+        // Gunakan loose equality untuk menghindari masalah tipe
+        // Tapi tetap aman karena sudah dinormalisasi
+        return normalizedUser == normalizedCorrect;
     }
 
     // Method untuk mengacak array (Fisher-Yates shuffle)
@@ -605,7 +651,7 @@ class KuisMatematika {
         document.getElementById('prev-btn').addEventListener('click', () => {
             this.previousSoal();
         });
-        
+
         document.getElementById('next-btn').addEventListener('click', () => {
             this.nextSoal();
         });
@@ -614,38 +660,38 @@ class KuisMatematika {
     mulaiKuis() {
         const nama = document.getElementById('nama').value;
         const sekolah = document.getElementById('sekolah').value;
-        
+
         this.userData = { nama, sekolah };
-        
+
         document.getElementById('identitas-container').classList.add('hidden');
         document.getElementById('loading').classList.remove('hidden');
-        
+
         this.setJudulKuis();
-        
+
         setTimeout(() => {
             document.getElementById('loading').classList.add('hidden');
-            
+
             // Tampilkan semua elemen yang diperlukan
             document.getElementById('info-peserta').classList.remove('hidden');
             document.getElementById('participant-name').textContent = this.userData.nama;
             document.getElementById('participant-school').textContent = this.userData.sekolah;
-            
+
             document.getElementById('sticky-header').classList.remove('hidden');
             document.getElementById('soal-container').classList.remove('hidden');
             document.getElementById('submit-btn').classList.remove('hidden');
-            
+
             this.renderSoalSatuPerSatu();
             this.updateProgress();
             this.startTimer();
             this.setupNavigasi();
-            this.updateNextButtonState(); // Update state tombol selanjutnya
+            this.updateNextButtonState();
         }, 1000);
     }
 
     renderSoalSatuPerSatu() {
         const container = document.getElementById('soal-container');
         container.innerHTML = '';
-        
+
         // Render soal
         this.soalData.soal.forEach((soal, index) => {
             const soalElement = this.createSoalElement(soal, index);
@@ -654,7 +700,7 @@ class KuisMatematika {
             }
             container.appendChild(soalElement);
         });
-        
+
         // Tambahkan navigasi
         const navigasiElement = document.createElement('div');
         navigasiElement.id = 'soal-navigasi';
@@ -667,28 +713,27 @@ class KuisMatematika {
             <button id="next-btn" class="nav-btn" disabled>Selanjutnya ➡️</button>
         `;
         container.appendChild(navigasiElement);
-        
+
         this.updateNavigasi();
-        this.updateNextButtonState(); // Update state tombol selanjutnya
+        this.updateNextButtonState();
     }
 
-    // Method baru: Cek apakah soal saat ini sudah dijawab
+    // Cek apakah soal saat ini sudah dijawab
     isCurrentSoalAnswered() {
         const currentSoal = this.soalData.soal[this.currentSoalIndex];
         return this.jawabanUser.hasOwnProperty(currentSoal.id);
     }
 
-    // Method baru: Update state tombol selanjutnya
+    // Update state tombol selanjutnya
     updateNextButtonState() {
         const nextBtn = document.getElementById('next-btn');
         if (nextBtn) {
             const isAnswered = this.isCurrentSoalAnswered();
             const isLastSoal = this.currentSoalIndex === this.totalSoal - 1;
-            
+
             // Nonaktifkan tombol selanjutnya jika belum dijawab DAN bukan soal terakhir
-            // Untuk soal terakhir, biarkan aktif karena akan dikumpulkan via tombol submit
             nextBtn.disabled = !isAnswered && !isLastSoal;
-            
+
             // Tambahkan tooltip jika disabled
             if (nextBtn.disabled) {
                 nextBtn.title = "Pilih jawaban terlebih dahulu untuk melanjutkan";
@@ -700,15 +745,15 @@ class KuisMatematika {
 
     startTimer() {
         this.updateTimerDisplay();
-        
+
         this.timerInterval = setInterval(() => {
             this.timeLeft--;
             this.updateTimerDisplay();
-            
+
             if (this.timeLeft <= 0) {
                 this.waktuHabis();
             }
-            
+
             const totalWaktu = 2 * 60 * this.totalSoal;
             if (this.timeLeft <= totalWaktu * 0.1) {
                 this.showTimeWarning();
@@ -719,10 +764,10 @@ class KuisMatematika {
     updateTimerDisplay() {
         const minutes = Math.floor(this.timeLeft / 60);
         const seconds = this.timeLeft % 60;
-        
+
         document.getElementById('timer-minutes').textContent = minutes.toString().padStart(2, '0');
         document.getElementById('timer-seconds').textContent = seconds.toString().padStart(2, '0');
-        
+
         if (this.timeLeft <= 5 * 60) {
             document.getElementById('timer-minutes').classList.add('timer-warning');
             document.getElementById('timer-seconds').classList.add('timer-warning');
@@ -750,17 +795,15 @@ class KuisMatematika {
     updateNavigasi() {
         document.getElementById('current-soal').textContent = this.currentSoalIndex + 1;
         document.getElementById('total-soal').textContent = this.totalSoal;
-        
+
         const prevBtn = document.getElementById('prev-btn');
-        const nextBtn = document.getElementById('next-btn');
-        
+
         prevBtn.disabled = this.currentSoalIndex === 0;
-        // nextBtn.disabled logic dipindah ke updateNextButtonState()
-        
+
         const progress = ((this.currentSoalIndex + 1) / this.totalSoal) * 100;
         document.getElementById('progress-fill').style.width = `${progress}%`;
         document.getElementById('progress-text').textContent = `${this.currentSoalIndex + 1}/${this.totalSoal}`;
-        
+
         // Update state tombol selanjutnya
         this.updateNextButtonState();
     }
@@ -771,13 +814,13 @@ class KuisMatematika {
             if (currentSoal) {
                 currentSoal.style.display = 'none';
             }
-            
+
             this.currentSoalIndex++;
             const nextSoal = document.querySelector(`[data-soal-index="${this.currentSoalIndex}"]`);
             if (nextSoal) {
                 nextSoal.style.display = 'block';
             }
-            
+
             this.updateNavigasi();
             this.scrollToSoal();
         }
@@ -789,13 +832,13 @@ class KuisMatematika {
             if (currentSoal) {
                 currentSoal.style.display = 'none';
             }
-            
+
             this.currentSoalIndex--;
             const prevSoal = document.querySelector(`[data-soal-index="${this.currentSoalIndex}"]`);
             if (prevSoal) {
                 prevSoal.style.display = 'block';
             }
-            
+
             this.updateNavigasi();
             this.scrollToSoal();
         }
@@ -804,7 +847,7 @@ class KuisMatematika {
     scrollToSoal() {
         const currentSoal = document.querySelector(`[data-soal-index="${this.currentSoalIndex}"]`);
         if (currentSoal) {
-            currentSoal.scrollIntoView({ 
+            currentSoal.scrollIntoView({
                 behavior: 'smooth',
                 block: 'start'
             });
@@ -813,7 +856,7 @@ class KuisMatematika {
 
     createSoalElement(soal, index) {
         const pilihanAcak = this.acakArray(soal.pilihan);
-        
+
         const div = document.createElement('div');
         div.className = 'soal-item';
         div.setAttribute('data-soal-index', index);
@@ -827,7 +870,7 @@ class KuisMatematika {
                                name="jawaban-${soal.id}" 
                                value="${pilihan.nilai}" 
                                id="${pilihan.id}"
-                               ${this.jawabanUser[soal.id] === pilihan.nilai ? 'checked' : ''}>
+                               ${this.jawabanUser[soal.id] !== undefined && this.bandingkanJawaban(this.jawabanUser[soal.id], pilihan.nilai) ? 'checked' : ''}>
                         <label for="${pilihan.id}" class="pilihan-label">
                             ${pilihan.nilai}
                         </label>
@@ -841,9 +884,12 @@ class KuisMatematika {
         radios.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 if (!this.quizSubmitted) {
-                    this.jawabanUser[soal.id] = parseInt(e.target.value);
+                    // ===================================================================
+                    // ✅ PERBAIKAN: Gunakan normalisasiJawaban bukan parseInt
+                    // ===================================================================
+                    this.jawabanUser[soal.id] = this.normalisasiJawaban(e.target.value);
                     this.updateProgress();
-                    this.updateNextButtonState(); // Update tombol selanjutnya ketika jawaban dipilih
+                    this.updateNextButtonState();
                 }
             });
         });
@@ -863,91 +909,90 @@ class KuisMatematika {
     }
 
     kumpulkanJawaban() {
-    // Tampilkan custom modal konfirmasi
-    this.tampilkanModalKonfirmasi();
-}
+        this.tampilkanModalKonfirmasi();
+    }
 
-tampilkanModalKonfirmasi() {
-    const modal = document.getElementById('confirm-modal');
-    const confirmedAnswered = document.getElementById('confirmed-answered');
-    const confirmedTotal = document.getElementById('confirmed-total');
-    const confirmCancel = document.getElementById('confirm-cancel');
-    const confirmSubmit = document.getElementById('confirm-submit');
-    
-    // Update data di modal
-    confirmedAnswered.textContent = this.soalDijawab;
-    confirmedTotal.textContent = this.totalSoal;
-    
-    // Tampilkan modal
-    modal.classList.remove('hidden');
-    
-    // Setup event listeners untuk tombol modal
-    const handleConfirm = () => {
-        this.sembunyikanModalKonfirmasi();
-        this.prosesPengumpulan();
-    };
-    
-    const handleCancel = () => {
-        this.sembunyikanModalKonfirmasi();
-    };
-    
-    // Hapus event listeners sebelumnya (jika ada)
-    confirmSubmit.replaceWith(confirmSubmit.cloneNode(true));
-    confirmCancel.replaceWith(confirmCancel.cloneNode(true));
-    
-    // Tambah event listeners baru
-    document.getElementById('confirm-submit').addEventListener('click', handleConfirm);
-    document.getElementById('confirm-cancel').addEventListener('click', handleCancel);
-    
-    // ESC key untuk close modal
-    const handleEscKey = (e) => {
-        if (e.key === 'Escape') {
+    tampilkanModalKonfirmasi() {
+        const modal = document.getElementById('confirm-modal');
+        const confirmedAnswered = document.getElementById('confirmed-answered');
+        const confirmedTotal = document.getElementById('confirmed-total');
+        const confirmCancel = document.getElementById('confirm-cancel');
+        const confirmSubmit = document.getElementById('confirm-submit');
+
+        // Update data di modal
+        confirmedAnswered.textContent = this.soalDijawab;
+        confirmedTotal.textContent = this.totalSoal;
+
+        // Tampilkan modal
+        modal.classList.remove('hidden');
+
+        // Setup event listeners untuk tombol modal
+        const handleConfirm = () => {
             this.sembunyikanModalKonfirmasi();
+            this.prosesPengumpulan();
+        };
+
+        const handleCancel = () => {
+            this.sembunyikanModalKonfirmasi();
+        };
+
+        // Hapus event listeners sebelumnya (jika ada)
+        confirmSubmit.replaceWith(confirmSubmit.cloneNode(true));
+        confirmCancel.replaceWith(confirmCancel.cloneNode(true));
+
+        // Tambah event listeners baru
+        document.getElementById('confirm-submit').addEventListener('click', handleConfirm);
+        document.getElementById('confirm-cancel').addEventListener('click', handleCancel);
+
+        // ESC key untuk close modal
+        const handleEscKey = (e) => {
+            if (e.key === 'Escape') {
+                this.sembunyikanModalKonfirmasi();
+            }
+        };
+
+        document.addEventListener('keydown', handleEscKey);
+        this.currentEscHandler = handleEscKey;
+    }
+
+    sembunyikanModalKonfirmasi() {
+        const modal = document.getElementById('confirm-modal');
+        modal.classList.add('hidden');
+
+        // Hapus event listener ESC
+        if (this.currentEscHandler) {
+            document.removeEventListener('keydown', this.currentEscHandler);
+            this.currentEscHandler = null;
         }
-    };
-    
-    document.addEventListener('keydown', handleEscKey);
-    this.currentEscHandler = handleEscKey;
-}
-
-sembunyikanModalKonfirmasi() {
-    const modal = document.getElementById('confirm-modal');
-    modal.classList.add('hidden');
-    
-    // Hapus event listener ESC
-    if (this.currentEscHandler) {
-        document.removeEventListener('keydown', this.currentEscHandler);
-        this.currentEscHandler = null;
     }
-}
 
-prosesPengumpulan() {
-    // PROSES PENGGUMPULAN ASLI (kode yang sebelumnya di kumpulkanJawaban)
-    if (this.timerInterval) {
-        clearInterval(this.timerInterval);
+    prosesPengumpulan() {
+        // PROSES PENGGUMPULAN ASLI
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+        }
+
+        this.quizSubmitted = true;
+        const results = this.hitungSkor();
+
+        this.nonaktifkanSoal();
+        this.tampilkanFeedback();
+
+        document.getElementById('submit-btn').classList.add('hidden');
+        document.getElementById('sticky-header').classList.add('hidden');
+        document.getElementById('info-peserta').classList.add('hidden');
+        document.getElementById('soal-container').classList.add('hidden');
+        document.getElementById('soal-navigasi').classList.add('hidden');
+
+        document.querySelector('.main-content').classList.add('quiz-completed');
+
+        this.tampilkanHasil(results);
+        this.scrollToResults();
     }
-    
-    this.quizSubmitted = true;
-    const results = this.hitungSkor();
-    
-    this.nonaktifkanSoal();
-    this.tampilkanFeedback();
-    
-    document.getElementById('submit-btn').classList.add('hidden');
-    document.getElementById('sticky-header').classList.add('hidden');
-    document.getElementById('info-peserta').classList.add('hidden');
-    document.getElementById('soal-container').classList.add('hidden');
-    document.getElementById('soal-navigasi').classList.add('hidden');
-    
-    document.querySelector('.main-content').classList.add('quiz-completed');
-    
-    this.tampilkanHasil(results);
-    this.scrollToResults();
-}
 
     scrollToResults() {
         const resultsBox = document.getElementById('results-box');
-        resultsBox.scrollIntoView({ 
+        resultsBox.scrollIntoView({
             behavior: 'smooth',
             block: 'start'
         });
@@ -958,19 +1003,23 @@ prosesPengumpulan() {
         soalItems.forEach(item => {
             item.classList.add('disabled');
         });
-        
+
         const semuaRadio = document.querySelectorAll('input[type="radio"]');
         semuaRadio.forEach(radio => {
             radio.disabled = true;
         });
     }
 
+    // ===================================================================
+    // ✅ PERBAIKAN: tampilkanFeedback menggunakan bandingkanJawaban
+    // ===================================================================
     tampilkanFeedback() {
         this.soalData.soal.forEach(soal => {
             const feedbackElement = document.getElementById(`feedback-${soal.id}`);
             const userAnswer = this.jawabanUser[soal.id];
-            
-            if (userAnswer === soal.jawaban) {
+
+            // Gunakan method bandingkanJawaban yang sudah diperbaiki
+            if (this.bandingkanJawaban(userAnswer, soal.jawaban)) {
                 feedbackElement.textContent = '✅ Jawaban Anda benar!';
                 feedbackElement.className = 'feedback correct';
             } else {
@@ -980,16 +1029,21 @@ prosesPengumpulan() {
         });
     }
 
+    // ===================================================================
+    // ✅ PERBAIKAN: hitungSkor menggunakan bandingkanJawaban
+    // ===================================================================
     hitungSkor() {
         let correct = 0;
         const results = [];
 
         this.soalData.soal.forEach(soal => {
             const userAnswer = this.jawabanUser[soal.id];
-            const isCorrect = userAnswer === soal.jawaban;
             
+            // Gunakan method bandingkanJawaban yang sudah diperbaiki
+            const isCorrect = this.bandingkanJawaban(userAnswer, soal.jawaban);
+
             if (isCorrect) correct++;
-            
+
             results.push({
                 soal: soal.soal,
                 userAnswer: userAnswer,
@@ -1015,18 +1069,18 @@ prosesPengumpulan() {
         const resultName = document.getElementById('result-name');
         const resultSchool = document.getElementById('result-school');
         const performanceFill = document.getElementById('performance-fill');
-        
+
         scoreValue.textContent = results.percentage;
         statCorrect.textContent = results.correct;
         statIncorrect.textContent = results.total - results.correct;
         resultQuizTitle.textContent = this.soalData["judul-soal004"];
         resultName.textContent = this.userData.nama;
         resultSchool.textContent = this.userData.sekolah;
-        
+
         setTimeout(() => {
             performanceFill.style.width = `${results.percentage}%`;
         }, 500);
-        
+
         resultsBox.classList.remove('hidden');
         this.tampilkanDetailHasil(results.details);
         document.getElementById('action-buttons').classList.remove('hidden');
@@ -1044,13 +1098,13 @@ prosesPengumpulan() {
     tampilkanDetailHasil(details) {
         const detailContainer = document.getElementById('detail-results');
         let html = '<h3>Detail Jawaban:</h3>';
-        
+
         details.forEach((detail, index) => {
             const isCorrect = detail.isCorrect;
             const statusClass = isCorrect ? 'correct' : 'incorrect';
             const statusIcon = isCorrect ? '✅' : '❌';
             const userAnswerText = detail.userAnswer !== undefined ? detail.userAnswer : 'Tidak dijawab';
-            
+
             html += `
                 <div class="detail-item ${statusClass}">
                     <div class="detail-question">${statusIcon} Soal ${index + 1}: ${detail.soal}</div>
@@ -1061,7 +1115,7 @@ prosesPengumpulan() {
                 </div>
             `;
         });
-        
+
         detailContainer.innerHTML = html;
         detailContainer.classList.remove('hidden');
     }
@@ -1069,50 +1123,53 @@ prosesPengumpulan() {
     downloadSertifikat() {
         const canvas = document.getElementById('certificate-canvas');
         const ctx = canvas.getContext('2d');
-        
+
         canvas.width = 1200;
         canvas.height = 800;
-        
+
         const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
         gradient.addColorStop(0, '#667eea');
         gradient.addColorStop(1, '#764ba2');
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
+
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 10;
         ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
-        
+
         ctx.fillStyle = 'white';
         ctx.font = 'bold 48px Arial';
         ctx.textAlign = 'center';
         ctx.fillText('SERTIFIKAT PENGHARGAAN', canvas.width / 2, 150);
-        
+
         ctx.font = '28px Arial';
         ctx.fillText('Atas Partisipasi Dalam', canvas.width / 2, 200);
-        
+
         ctx.font = 'bold 36px Arial';
         ctx.fillText(this.soalData["judul-soal004"], canvas.width / 2, 250);
-        
+
         ctx.font = 'bold 42px Arial';
         ctx.fillText(this.userData.nama, canvas.width / 2, 350);
-        
+
         ctx.font = '28px Arial';
         ctx.fillText(this.userData.sekolah, canvas.width / 2, 400);
-        
+
+        // ===================================================================
+        // ✅ PERBAIKAN: hitungSkor akan menggunakan bandingkanJawaban
+        // ===================================================================
         const results = this.hitungSkor();
         ctx.font = 'bold 72px Arial';
         ctx.fillStyle = '#ffd700';
         ctx.fillText(`NILAI: ${results.percentage}`, canvas.width / 2, 500);
-        
+
         ctx.fillStyle = 'white';
         ctx.font = '24px Arial';
         ctx.fillText(`Jawaban Benar: ${results.correct} dari ${results.total} soal`, canvas.width / 2, 550);
-        
+
         ctx.font = '18px Arial';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.fillText('Dibuat oleh Bimbel Brilian - www.bimbelbrilian.com', canvas.width / 2, 620);
-        
+
         const today = new Date().toLocaleDateString('id-ID', {
             weekday: 'long',
             year: 'numeric',
@@ -1122,7 +1179,7 @@ prosesPengumpulan() {
         ctx.font = '20px Arial';
         ctx.fillStyle = 'white';
         ctx.fillText(`Tanggal: ${today}`, canvas.width / 2, 680);
-        
+
         const link = document.createElement('a');
         link.download = `Sertifikat-${this.userData.nama}.png`;
         link.href = canvas.toDataURL();
@@ -1132,7 +1189,7 @@ prosesPengumpulan() {
     celebrate() {
         const colors = ['#4facfe', '#00f2fe', '#667eea', '#764ba2', '#ffd700', '#ff6b6b'];
         const container = document.querySelector('.container');
-        
+
         for (let i = 0; i < 50; i++) {
             setTimeout(() => {
                 const confetti = document.createElement('div');
@@ -1161,29 +1218,29 @@ prosesPengumpulan() {
         this.quizSubmitted = false;
         this.currentSoalIndex = 0;
         this.timeLeft = 2 * 60 * this.soalData.soal.length;
-        
+
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
         }
-        
+
         document.getElementById('results-box').classList.add('hidden');
         document.getElementById('detail-results').classList.add('hidden');
         document.getElementById('action-buttons').classList.add('hidden');
         document.getElementById('soal-container').classList.add('hidden');
         document.getElementById('soal-navigasi').classList.add('hidden');
         document.getElementById('sticky-header').classList.add('hidden');
-        
+
         document.querySelector('.main-content').classList.remove('quiz-completed');
-        
+
         document.getElementById('progress-fill').style.width = '0%';
         document.getElementById('progress-text').textContent = `0/${this.totalSoal}`;
-        
+
         const initialMinutes = Math.floor(this.timeLeft / 60);
         document.getElementById('timer-minutes').textContent = initialMinutes.toString().padStart(2, '0');
         document.getElementById('timer-seconds').textContent = '00';
         document.getElementById('timer-minutes').classList.remove('timer-warning');
         document.getElementById('timer-seconds').classList.remove('timer-warning');
-        
+
         document.getElementById('identitas-container').classList.remove('hidden');
         document.getElementById('form-identitas').reset();
         document.getElementById('submit-btn').disabled = true;
@@ -1192,7 +1249,7 @@ prosesPengumpulan() {
 
 // Tambahkan method roundRect untuk Canvas
 if (!CanvasRenderingContext2D.prototype.roundRect) {
-    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
         if (w < 2 * r) r = w / 2;
         if (h < 2 * r) r = h / 2;
         this.beginPath();
@@ -1203,7 +1260,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         this.arcTo(x, y, x + w, y, r);
         this.closePath();
         return this;
-    }
+    };
 }
 
 const confettiStyle = document.createElement('style');
@@ -1231,5 +1288,4 @@ document.head.appendChild(confettiStyle);
 
 document.addEventListener('DOMContentLoaded', () => {
     new KuisMatematika();
-
 });
